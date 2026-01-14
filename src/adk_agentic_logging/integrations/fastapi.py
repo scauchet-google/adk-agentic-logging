@@ -2,21 +2,24 @@ import json
 import time
 from typing import Any, Awaitable, Callable
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from adk_agentic_logging.core.context import log_ctx
 from adk_agentic_logging.core.metadata import get_google_project_id
 
 
-class AgenticLoggingMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: Any):
-        super().__init__(app)
+class AgenticLoggingMiddleware:
+    def __init__(self, app: ASGIApp):
+        self.app = app
         self.project_id = get_google_project_id()
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive)
         log_ctx.clear()
         start_time = time.time()
 
@@ -32,17 +35,21 @@ class AgenticLoggingMiddleware(BaseHTTPMiddleware):
             },
         )
 
+        async def send_wrapper(message: Any) -> None:
+            if message["type"] == "http.response.start":
+                status = message["status"]
+                log_ctx.add(
+                    "http",
+                    {
+                        **log_ctx.get_all().get("http", {}),
+                        "status": status,
+                        "duration_ms": round((time.time() - start_time) * 1000, 2),
+                    },
+                )
+            await send(message)
+
         try:
-            response = await call_next(request)
-            log_ctx.add(
-                "http",
-                {
-                    **log_ctx.get_all().get("http", {}),
-                    "status": response.status_code,
-                    "duration_ms": round((time.time() - start_time) * 1000, 2),
-                },
-            )
-            return response
+            await self.app(scope, receive, send_wrapper)
         except Exception as e:
             log_ctx.record_exception(e)
             log_ctx.add(
