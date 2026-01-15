@@ -23,6 +23,11 @@ class LogContext:
         ctx[key] = value
         _log_context.set(ctx)
 
+    def enrich(self, **kwargs: Any) -> None:
+        """Convenience method to add multiple attributes to the context."""
+        for key, value in kwargs.items():
+            self.add(key, value)
+
     def get_all(self) -> Dict[str, Any]:
         """Returns all data in the current context."""
         return self._get_ctx()

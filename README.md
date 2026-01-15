@@ -72,9 +72,24 @@ class MyAgentRunner:
     @instrument_runner
     def run(self, runner_input, **kwargs):
         # Your ADK agent logic
-        # Metrics & metadata are automatically captured
         return result
 ```
+
+### 3. Enrich with Agent Context
+
+You can explicitly enrich the wide event with any context, such as the user's question and the agent's response, using `log_ctx`.
+
+```python
+from adk_agentic_logging import log_ctx
+
+# In your agent logic or route handler
+log_ctx.enrich(
+    question="What is the weather in Paris?",
+    response="The weather in Paris is sunny with 22°C."
+)
+```
+
+Adding these fields makes your logs easily queryable for specific interactions.
 
 ---
 
