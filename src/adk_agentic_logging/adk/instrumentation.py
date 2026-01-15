@@ -49,13 +49,30 @@ def _wrap_generator(gen: Iterable[Any]) -> Generator[Any, None, None]:
 
     try:
         for chunk in gen:
-            # Extract metrics from chunk (ADK convention: chunk.usage.total_tokens etc.)
-            usage = getattr(chunk, "usage", None)
+            # Extract metrics from chunk
+            # Support both 'usage' and 'usage_metadata'
+            # Support both attribute and dictionary access
+            usage = None
+            for attr in ["usage", "usage_metadata"]:
+                usage = getattr(chunk, attr, None)
+                if usage is None and isinstance(chunk, dict):
+                    usage = chunk.get(attr)
+                if usage:
+                    break
+
             if usage:
-                total_tokens = getattr(usage, "total_tokens", total_tokens)
+                # Support both attribute and dictionary access for total_tokens
+                new_tokens = getattr(usage, "total_tokens", None)
+                if new_tokens is None and isinstance(usage, dict):
+                    new_tokens = usage.get("total_tokens")
+
+                if new_tokens is not None:
+                    total_tokens = new_tokens
 
             # Extract tool calls
             calls = getattr(chunk, "tool_calls", None)
+            if calls is None and isinstance(chunk, dict):
+                calls = chunk.get("tool_calls")
             if calls:
                 tool_calls.extend(calls)
 
@@ -71,8 +88,20 @@ def _wrap_generator(gen: Iterable[Any]) -> Generator[Any, None, None]:
 
 def _capture_metrics(result: Any) -> None:
     """Captures metrics from a non-streaming ADK result."""
-    usage = getattr(result, "usage", None)
+    usage = None
+    for attr in ["usage", "usage_metadata"]:
+        usage = getattr(result, attr, None)
+        if usage is None and isinstance(result, dict):
+            usage = result.get(attr)
+        if usage:
+            break
+
     if usage:
         adk_ctx = log_ctx.get_all().get("adk", {})
-        adk_ctx["total_tokens"] = getattr(usage, "total_tokens", 0)
-        log_ctx.add("adk", adk_ctx)
+        total_tokens = getattr(usage, "total_tokens", None)
+        if total_tokens is None and isinstance(usage, dict):
+            total_tokens = usage.get("total_tokens")
+
+        if total_tokens is not None:
+            adk_ctx["total_tokens"] = total_tokens
+            log_ctx.add("adk", adk_ctx)

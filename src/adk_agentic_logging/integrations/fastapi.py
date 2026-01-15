@@ -1,6 +1,6 @@
 import json
 import time
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from fastapi import Request
 from starlette.types import ASGIApp, Receive, Scope, Send

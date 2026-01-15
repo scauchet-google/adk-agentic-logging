@@ -12,7 +12,9 @@ from adk_agentic_logging.integrations.fastapi import AgenticLoggingMiddleware
 # 1. Mock ADK Agent
 class MockAgent:
     @instrument_runner
-    def run(self, runner_input: Dict[str, Any]) -> Generator[Dict[str, Any], None, None]:
+    def run(
+        self, runner_input: Dict[str, Any]
+    ) -> Generator[Any, None, None]:
         # Simulate some usage metrics retrieval
         class MockUsage:
             def __init__(self) -> None:
@@ -22,7 +24,7 @@ class MockAgent:
             def __init__(self, text: str) -> None:
                 self.text = text
                 self.usage = MockUsage()
-                self.tool_calls = []
+                self.tool_calls: list[Any] = []
 
         yield {"text": "Hello"}
         yield {"text": " world"}
