@@ -2,6 +2,9 @@ import contextvars
 from typing import Any, Dict, Optional
 
 import opentelemetry.trace as trace
+from opentelemetry.exporter.richconsole import RichConsoleSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace import TracerProvider
 
 # The context bucket for the request
 _log_context: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar(
@@ -63,4 +66,20 @@ class LogContext:
             self.add("logging.googleapis.com/spanId", span_id)
 
 
+def setup_tracing() -> None:
+    """Initializes OpenTelemetry with RichConsoleSpanExporter."""
+    provider = TracerProvider()
+    # Using BatchSpanProcessor to avoid blocking the main thread.
+    # schedule_delay_millis is set low for more "engaging" real-time feel.
+    processor = BatchSpanProcessor(
+        RichConsoleSpanExporter(),
+        schedule_delay_millis=500,
+        max_export_batch_size=10,
+    )
+    provider.add_span_processor(processor)
+    trace.set_tracer_provider(provider)
+
+
+# Initialize tracing automatically
+setup_tracing()
 log_ctx = LogContext()
