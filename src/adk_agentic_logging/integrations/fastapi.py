@@ -1,8 +1,8 @@
 import json
 import time
 from typing import Any
-import opentelemetry.trace as trace
 
+import opentelemetry.trace as trace
 from fastapi import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 

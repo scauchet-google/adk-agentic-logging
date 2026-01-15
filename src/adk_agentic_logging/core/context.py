@@ -3,8 +3,8 @@ from typing import Any, Dict, Optional
 
 import opentelemetry.trace as trace
 from opentelemetry.exporter.richconsole import RichConsoleSpanExporter
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 # The context bucket for the request
 _log_context: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar(

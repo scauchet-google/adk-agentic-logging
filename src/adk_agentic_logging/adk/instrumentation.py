@@ -93,7 +93,8 @@ def instrument_runner(func: F) -> F:
         @functools.wraps(func)
         def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = trace.get_tracer(__name__)
-            # For async generators, we start a span that is closed when the generator is exhausted
+            # For async generators, we start a span that is closed when
+            # the generator is exhausted
             span = tracer.start_span(f"ADK {func.__name__}")
             _prepare_log_ctx(*args, **kwargs)
             return _wrap_async_generator(func(*args, **kwargs), span)
@@ -121,6 +122,12 @@ def _prepare_log_ctx(*args: Any, **kwargs: Any) -> None:
         input_obj = kwargs
 
     adk_meta = extract_adk_metadata(input_obj)
+    
+    # Ensure temperature is in adk block if it was found in agent_config
+    if "gen_ai" in log_ctx.get_all() and "temperature" in log_ctx.get_all()["gen_ai"]:
+        if "temperature" not in adk_meta:
+            adk_meta["temperature"] = log_ctx.get_all()["gen_ai"]["temperature"]
+
     log_ctx.add("adk", adk_meta)
 
 

@@ -9,25 +9,37 @@ def extract_adk_metadata(runner_input: Any) -> Dict[str, Any]:
     metadata = {}
 
     # Common ADK fields
-    for field in ["session_id", "user_id", "tenant_id", "conversation_id"]:
+    for field in [
+        "session_id",
+        "user_id",
+        "tenant_id",
+        "conversation_id",
+        "temperature",
+    ]:
         # Check direct attributes
         val = getattr(runner_input, field, None)
-        if val:
+        if val is not None:
             metadata[field] = val
 
         # Check dictionary-like access if available
         elif isinstance(runner_input, dict):
             val = runner_input.get(field)
-            if val:
+            if val is not None:
                 metadata[field] = val
 
     # Also look into nested objects if they exist
     # e.g., runner_input.context.session_id
     context = getattr(runner_input, "context", None)
     if context:
-        for field in ["session_id", "user_id", "tenant_id", "conversation_id"]:
+        for field in [
+            "session_id",
+            "user_id",
+            "tenant_id",
+            "conversation_id",
+            "temperature",
+        ]:
             val = getattr(context, field, None)
-            if val and field not in metadata:
+            if val is not None and field not in metadata:
                 metadata[field] = val
 
     return metadata
@@ -60,10 +72,24 @@ def extract_agent_config(runner_instance: Any) -> Dict[str, Any]:
             )
 
             # Extract generation config (temperature, etc.)
-            for param in ["temperature", "top_k", "top_p", "max_output_tokens"]:
+            params = ["temperature", "top_k", "top_p", "max_output_tokens"]
+            for param in params:
                 val = getattr(model, param, None)
                 if val is not None:
                     config[param] = val
+
+            # Check nested generation_config (common in ADK/google-genai)
+            gen_config = getattr(model, "generation_config", None)
+            if gen_config:
+                if isinstance(gen_config, dict):
+                    for param in params:
+                        if param in gen_config and param not in config:
+                            config[param] = gen_config[param]
+                else:
+                    for param in params:
+                        val = getattr(gen_config, param, None)
+                        if val is not None and param not in config:
+                            config[param] = val
 
     return config
 
