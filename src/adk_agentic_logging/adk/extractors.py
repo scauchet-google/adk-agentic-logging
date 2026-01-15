@@ -57,11 +57,25 @@ def extract_agent_config(runner_instance: Any) -> Dict[str, Any]:
             config["model"] = getattr(model, "model_name", getattr(model, "model", "unknown_model"))
             
             # Extract generation config (temperature, etc.)
-            # These might be direct attributes or in a config object
-            for param in ["temperature", "top_k", "top_p", "max_output_tokens"]:
+            # These might be direct attributes or in a config object (generation_config)
+            params = ["temperature", "top_k", "top_p", "max_output_tokens"]
+            for param in params:
                 val = getattr(model, param, None)
                 if val is not None:
                     config[param] = val
+            
+            # If not found directly, check generation_config
+            gen_config = getattr(model, "generation_config", None)
+            if gen_config:
+                for param in params:
+                    if param not in config:
+                        # Check attribute
+                        val = getattr(gen_config, param, None)
+                        if val is None and isinstance(gen_config, dict):
+                            # Check dict
+                            val = gen_config.get(param)
+                        if val is not None:
+                            config[param] = val
 
     return config
 

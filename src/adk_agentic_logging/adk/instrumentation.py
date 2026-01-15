@@ -75,6 +75,11 @@ def _prepare_log_ctx(*args: Any, **kwargs: Any) -> None:
         input_obj = kwargs
 
     adk_meta = extract_adk_metadata(input_obj)
+    
+    # Enrich with temperature if found in agent_config
+    if "temperature" in agent_config:
+        adk_meta["temperature"] = agent_config["temperature"]
+        
     log_ctx.add("adk", adk_meta)
 
 
