@@ -1,5 +1,4 @@
-from typing import Any, Dict
-
+from typing import Any, Dict, List
 
 def extract_adk_metadata(runner_input: Any) -> Dict[str, Any]:
     """
@@ -31,3 +30,76 @@ def extract_adk_metadata(runner_input: Any) -> Dict[str, Any]:
                 metadata[field] = val
 
     return metadata
+
+
+def extract_agent_config(runner_instance: Any) -> Dict[str, Any]:
+    """
+    Extracts static configuration from the Runner's agent instance.
+    Captures Model Name, Temperature, and Agent Name.
+    """
+    config = {}
+    
+    # Typically runner.agent holds the root agent
+    agent = getattr(runner_instance, "agent", None)
+    if not agent:
+        return config
+
+    config["agent_name"] = getattr(agent, "name", "unknown_agent")
+    
+    # Extract Model Config
+    model = getattr(agent, "model", None)
+    if model:
+        # Model can be a string or a configured object (e.g., Gemini(...))
+        if isinstance(model, str):
+            config["model"] = model
+        else:
+            # Try common attribute names for model objects
+            config["model"] = getattr(model, "model_name", getattr(model, "model", "unknown_model"))
+            
+            # Extract generation config (temperature, etc.)
+            # These might be direct attributes or in a config object
+            for param in ["temperature", "top_k", "top_p", "max_output_tokens"]:
+                val = getattr(model, param, None)
+                if val is not None:
+                    config[param] = val
+
+    return config
+
+
+def extract_tool_calls_info(chunk_or_result: Any) -> List[Dict[str, Any]]:
+    """
+    Extracts a list of tool calls with names and arguments.
+    Supports both attribute access (objects) and dictionary access.
+    """
+    details = []
+    
+    # 1. Try attribute access
+    tool_calls = getattr(chunk_or_result, "tool_calls", None)
+    # 2. Try dict access
+    if tool_calls is None and isinstance(chunk_or_result, dict):
+        tool_calls = chunk_or_result.get("tool_calls")
+        
+    if not tool_calls or not isinstance(tool_calls, (list, tuple)):
+        return details
+
+    for call in tool_calls:
+        func = getattr(call, "function", None)
+        if func is None and isinstance(call, dict):
+            func = call.get("function")
+            
+        if func:
+            name = getattr(func, "name", None)
+            if name is None and isinstance(func, dict):
+                name = func.get("name")
+                
+            args = getattr(func, "arguments", None)
+            if args is None and isinstance(func, dict):
+                args = func.get("arguments")
+                
+            if name:
+                details.append({
+                    "name": name,
+                    "arguments": args or {}
+                })
+            
+    return details
