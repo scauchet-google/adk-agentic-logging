@@ -35,7 +35,7 @@ def test_fastapi_middleware_success(caplog: pytest.LogCaptureFixture) -> None:
     assert log_line["severity"] == "INFO"
     assert log_line["http"]["method"] == "GET"
     assert log_line["http"]["path"] == "/test"
-    assert log_line["http"]["status"] == 200
+    assert log_line["http"]["status_code"] == 200
     assert "duration_ms" in log_line["http"]
 
 

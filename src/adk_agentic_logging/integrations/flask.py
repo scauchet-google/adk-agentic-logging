@@ -37,14 +37,12 @@ class AgenticLogging:
         curr_time = time.time()
         start_time = getattr(g, "_start_time", curr_time)
         duration_ms = round((curr_time - start_time) * 1000, 2)
-        log_ctx.add(
-            "http",
-            {
-                **log_ctx.get_all().get("http", {}),
-                "status": response.status_code,
-                "duration_ms": duration_ms,
-            },
-        )
+        http_ctx = log_ctx.get_all().get("http", {})
+        http_ctx.update({
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+        })
+        log_ctx.add("http", http_ctx)
         return response
 
     def _teardown_request(self, exception: Optional[BaseException] = None) -> None:
@@ -59,9 +57,8 @@ class AgenticLogging:
             return
 
         final_log = {
-            "severity": ctx.get("severity", "INFO"),
+            "severity": ctx.pop("severity", "INFO"),
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "message": "Request processed",
             **ctx,
         }
         logger.info(json.dumps(final_log, default=default_serializer))

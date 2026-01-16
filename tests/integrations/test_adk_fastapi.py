@@ -11,6 +11,13 @@ from adk_agentic_logging.integrations.fastapi import AgenticLoggingMiddleware
 
 # 1. Mock ADK Agent
 class MockAgent:
+    def __init__(self) -> None:
+        class MockAgentInfo:
+            def __init__(self) -> None:
+                self.name = "TestAgent"
+                self.model = "mock-model"
+        self.agent = MockAgentInfo()
+
     @instrument_runner
     def run(self, runner_input: Dict[str, Any]) -> Generator[Any, None, None]:
         # Simulate some usage metrics retrieval
@@ -67,16 +74,23 @@ def test_fastapi_adk_integration(caplog: pytest.LogCaptureFixture) -> None:
                 found_agentic_log = True
                 # Check FastAPI metadata
                 assert log_data["http"]["method"] == "POST"
-                assert log_data["http"]["status"] == 200
+                assert log_data["http"]["status_code"] == 200
 
-                # Check ADK metadata (captured via instrument_runner)
-                assert "adk" in log_data
-                assert log_data["adk"]["session_id"] == "session-123"
-                assert log_data["adk"]["user_id"] == "user-456"
+                # Check App namespace
+                assert "app" in log_data
+                assert log_data["app"]["session_id"] == "session-123"
+                assert log_data["app"]["user_id"] == "user-456"
 
-                # Check ADK metrics (captured via _wrap_generator in instrument_runner)
-                # total_tokens should be 100 as per MockUsage
-                assert log_data["adk"]["total_tokens"] == 100
+                # Check GenAI namespace
+                assert "gen_ai" in log_data
+                assert log_data["gen_ai"]["usage"]["total_tokens"] == 100
+                assert log_data["gen_ai"]["agent"]["name"] == "TestAgent"
+                assert log_data["gen_ai"]["model"] == "mock-model"
+                
+                # Check content accumulation (namespaced as gen_ai.content.completion)
+                assert "content" in log_data["gen_ai"]
+                assert log_data["gen_ai"]["content"]["completion"] == "Hello world!"
+                assert log_data["gen_ai"]["content"]["prompt"] == "hello"
         except json.JSONDecodeError:
             continue
 

@@ -22,12 +22,20 @@ class AgenticLoggingMiddleware:
             await self.app(scope, receive, send)
             return
 
-        request = Request(scope, receive)
+        request = Request(scope)
         log_ctx.clear()
         start_time = time.time()
 
         tracer = trace.get_tracer(__name__)
         span_name = f"{request.method} {request.url.path}"
+
+        body_chunks = []
+
+        async def receive_wrapper() -> Any:
+            message = await receive()
+            if message["type"] == "http.request":
+                body_chunks.append(message.get("body", b""))
+            return message
 
         with tracer.start_as_current_span(span_name) as span:
             # Initialize context with OTel tracing
@@ -39,57 +47,65 @@ class AgenticLoggingMiddleware:
                 "path": request.url.path,
             }
             log_ctx.add("http", http_meta)
-            for k, v in http_meta.items():
-                span.set_attribute(f"http.{k}", v)
 
             async def send_wrapper(message: Any) -> None:
                 if message["type"] == "http.response.start":
                     status = message["status"]
                     duration = round((time.time() - start_time) * 1000, 2)
-                    log_ctx.add(
-                        "http",
-                        {
-                            **log_ctx.get_all().get("http", {}),
-                            "status": status,
-                            "duration_ms": duration,
-                        },
-                    )
-                    span.set_attribute("http.status_code", status)
-                    span.set_attribute("http.duration_ms", duration)
+                    http_ctx = log_ctx.get_all().get("http", {})
+                    http_ctx.update({
+                        "status_code": status,
+                        "duration_ms": duration,
+                    })
+                    log_ctx.add("http", http_ctx)
                 await send(message)
 
             try:
-                await self.app(scope, receive, send_wrapper)
+                await self.app(scope, receive_wrapper, send_wrapper)
             except Exception as e:
                 log_ctx.record_exception(e)
                 duration = round((time.time() - start_time) * 1000, 2)
-                log_ctx.add(
-                    "http",
-                    {
-                        **log_ctx.get_all().get("http", {}),
-                        "status": 500,
-                        "duration_ms": duration,
-                    },
-                )
-                span.set_attribute("http.status_code", 500)
-                span.set_attribute("http.duration_ms", duration)
+                http_ctx = log_ctx.get_all().get("http", {})
+                http_ctx.update({
+                    "status_code": 500,
+                    "duration_ms": duration,
+                })
+                log_ctx.add("http", http_ctx)
                 span.record_exception(e)
                 span.set_status(trace.Status(trace.StatusCode.ERROR))
                 raise e
             finally:
-                # Add all remaining context as span attributes
-                for key, val in log_ctx.get_all().items():
-                    if isinstance(val, dict):
-                        for k, v in val.items():
-                            attr_val = str(v)
-                            if len(attr_val) > 1024:
-                                attr_val = attr_val[:1024] + "... [truncated]"
-                            span.set_attribute(f"{key}.{k}", attr_val)
-                    else:
-                        attr_val = str(val)
-                        if len(attr_val) > 1024:
-                            attr_val = attr_val[:1024] + "... [truncated]"
-                        span.set_attribute(key, attr_val)
+                # Capture body for the prompt snippet
+                if body_chunks:
+                    try:
+                        full_body = b"".join(body_chunks)
+                        if full_body:
+                            try:
+                                body_data = json.loads(full_body)
+                                # If it's a dict, try to find a message/prompt field
+                                if isinstance(body_data, dict):
+                                    prompt = (
+                                        body_data.get("message")
+                                        or body_data.get("prompt")
+                                        or body_data
+                                    )
+                                    log_ctx.add_content(
+                                        "gen_ai.content.prompt", prompt
+                                    )
+                                else:
+                                    log_ctx.add_content(
+                                        "gen_ai.content.prompt", body_data
+                                    )
+                            except json.JSONDecodeError:
+                                # Fallback to string
+                                log_ctx.add_content(
+                                    "gen_ai.content.prompt",
+                                    full_body.decode("utf-8", errors="ignore"),
+                                )
+                    except Exception:
+                        pass # Defensive
+
+                # Attributes are already set in span via log_ctx.add calls
                 self._emit_log()
 
     def _emit_log(self) -> None:
@@ -98,9 +114,8 @@ class AgenticLoggingMiddleware:
             return
 
         final_log = {
-            "severity": ctx.get("severity", "INFO"),
+            "severity": ctx.pop("severity", "INFO"),
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "message": "Request processed",
             **ctx,
         }
         logger.info(json.dumps(final_log, default=default_serializer))
