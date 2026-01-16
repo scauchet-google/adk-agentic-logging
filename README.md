@@ -13,11 +13,12 @@ By seamlessly bridging web frameworks with Google Cloud’s ecosystem, it enforc
 
 ## ✨ Features
 
-- **🚀 One Request = One Log Line**: Aggregates all context into a single JSON object emitted at the end of the request.
+- **� One Request = One Log Line**: Aggregates all context into a single JSON object emitted at the end of the request.
 - **🧠 Deep ADK Observability**: Automatically captures token usage, tool calls, and session metadata.
 - **☁️ Zero-Config GCP**: Automatic detection of project ID and environment metadata.
 - **🔍 Trace-Aware**: Injects OpenTelemetry `trace_id` and `span_id` for seamless Cloud Trace linking.
-- **🔌 Framework Agnostic**: First-class support for **FastAPI**, **Flask**, and **Django**.
+- **�🔌 Framework Agnostic**: First-class support for **FastAPI**, **Flask**, and **Django**.
+- **🧹 Vertex AI Trace Sanitization**: Surgically removes large JSON payloads (prompts, tool definitions) from Cloud Trace spans to reduce noise and cost.
 
 ---
 
@@ -90,6 +91,17 @@ log_ctx.enrich(
 ```
 
 Adding these fields makes your logs easily queryable for specific interactions.
+
+### 4. Vertex AI Trace Sanitizer (Recommended)
+
+To reduce Cloud Trace costs and declutter the Waterfall UI, use the `configure_adk_telemetry` helper. This removes massive JSON payloads (prompts, history) from traces while preserving them in the structured logs.
+
+```python
+from adk_agentic_logging.otel.config import configure_adk_telemetry
+
+# Initialize at app startup
+configure_adk_telemetry(project_id="your-gcp-project-id")
+```
 
 ---
 
