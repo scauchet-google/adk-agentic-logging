@@ -40,7 +40,7 @@ def instrument_runner(func: F) -> F:
         tracer = trace.get_tracer(__name__)
         span = tracer.start_span(f"ADK {func.__name__}")
         with trace.use_span(span, end_on_exit=False):
-            _prepare_log_ctx(*args, **kwargs)
+            _prepare_log_ctx(func, *args, **kwargs)
             try:
                 result = await func(*args, **kwargs)
 
@@ -65,7 +65,7 @@ def instrument_runner(func: F) -> F:
         tracer = trace.get_tracer(__name__)
         span = tracer.start_span(f"ADK {func.__name__}")
         with trace.use_span(span, end_on_exit=False):
-            _prepare_log_ctx(*args, **kwargs)
+            _prepare_log_ctx(func, *args, **kwargs)
             try:
                 result = func(*args, **kwargs)
 
@@ -96,7 +96,7 @@ def instrument_runner(func: F) -> F:
             # For async generators, we start a span that is closed when
             # the generator is exhausted
             span = tracer.start_span(f"ADK {func.__name__}")
-            _prepare_log_ctx(*args, **kwargs)
+            _prepare_log_ctx(func, *args, **kwargs)
             return _wrap_async_generator(func(*args, **kwargs), span)
 
         return cast(F, async_gen_wrapper)
@@ -106,23 +106,39 @@ def instrument_runner(func: F) -> F:
     return cast(F, sync_wrapper)
 
 
-def _prepare_log_ctx(*args: Any, **kwargs: Any) -> None:
+def _prepare_log_ctx(func: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
     """Extracts metadata from input and adds it to the log context."""
+    sig = inspect.signature(func)
+    bound = sig.bind_partial(*args, **kwargs)
+
     # 1. Extract Agent Configuration from the runner instance (self)
-    if args:
+    runner_instance = bound.arguments.get("self") or bound.arguments.get("cls")
+    if not runner_instance and args:
+        # Fallback to first arg if not bound by name
         runner_instance = args[0]
+
+    if runner_instance:
         agent_config = extract_agent_config(runner_instance)
         if agent_config:
             log_ctx.add("gen_ai", agent_config)
 
     # 2. Extract Input Metadata (session_id, user_id, etc.)
-    # Usually first arg after self or named kwargs
-    input_obj = args[1] if len(args) > 1 else kwargs.get("runner_input")
-    if not input_obj and kwargs:
-        input_obj = kwargs
+    # Look for typical ADK argument names like 'input', 'runner_input', 'messages'
+    input_obj = (
+        bound.arguments.get("runner_input")
+        or bound.arguments.get("input")
+        or bound.arguments.get("messages")
+    )
+
+    # Fallback logic if not found by name
+    if not input_obj:
+        if len(args) > 1:
+            input_obj = args[1]
+        elif kwargs:
+            input_obj = kwargs
 
     adk_meta = extract_adk_metadata(input_obj)
-    
+
     # Ensure temperature is in adk block if it was found in agent_config
     if "gen_ai" in log_ctx.get_all() and "temperature" in log_ctx.get_all()["gen_ai"]:
         if "temperature" not in adk_meta:

@@ -6,6 +6,7 @@ from flask import Flask, Response, g, request
 
 from adk_agentic_logging.core.context import log_ctx
 from adk_agentic_logging.core.metadata import get_google_project_id
+from adk_agentic_logging.core.serialization import default_serializer
 
 
 class AgenticLogging:
@@ -62,4 +63,4 @@ class AgenticLogging:
             "message": "Request processed",
             **ctx,
         }
-        print(json.dumps(final_log))
+        print(json.dumps(final_log, default=default_serializer))

@@ -7,6 +7,7 @@ from django.http import HttpRequest, HttpResponse
 
 from adk_agentic_logging.core.context import log_ctx
 from adk_agentic_logging.core.metadata import get_google_project_id
+from adk_agentic_logging.core.serialization import default_serializer
 
 
 class AgenticLoggingMiddleware:
@@ -98,4 +99,4 @@ class AgenticLoggingMiddleware:
             "message": "Request processed",
             **ctx,
         }
-        print(json.dumps(final_log))
+        print(json.dumps(final_log, default=default_serializer))
