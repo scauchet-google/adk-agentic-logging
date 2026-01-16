@@ -21,13 +21,16 @@ async def read_error() -> None:
     raise ValueError("oops")
 
 
-def test_fastapi_middleware_success(capsys: pytest.CaptureFixture[str]) -> None:
+def test_fastapi_middleware_success(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("INFO", logger="adk.agentic")
     client = TestClient(app)
     response = client.get("/test")
     assert response.status_code == 200
 
-    captured = capsys.readouterr()
-    log_line = json.loads(captured.out.strip())
+    # Ensure we got exactly one log record from our middleware
+    log_records = [rec for rec in caplog.records if rec.name == "adk.agentic"]
+    assert len(log_records) > 0
+    log_line = json.loads(log_records[-1].message)
 
     assert log_line["severity"] == "INFO"
     assert log_line["http"]["method"] == "GET"
@@ -36,13 +39,15 @@ def test_fastapi_middleware_success(capsys: pytest.CaptureFixture[str]) -> None:
     assert "duration_ms" in log_line["http"]
 
 
-def test_fastapi_middleware_error(capsys: pytest.CaptureFixture[str]) -> None:
+def test_fastapi_middleware_error(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("INFO", logger="adk.agentic")
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/error")
     assert response.status_code == 500
 
-    captured = capsys.readouterr()
-    log_line = json.loads(captured.out.strip())
+    log_records = [rec for rec in caplog.records if rec.name == "adk.agentic"]
+    assert len(log_records) > 0
+    log_line = json.loads(log_records[-1].message)
 
     assert log_line["severity"] == "ERROR"
     assert log_line["error"]["type"] == "ValueError"

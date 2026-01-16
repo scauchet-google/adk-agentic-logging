@@ -7,5 +7,5 @@ def default_serializer(obj: Any) -> str:
     Handles objects with isoformat() (like datetime) and falls back to str().
     """
     if hasattr(obj, "isoformat"):
-        return obj.isoformat()
+        return str(obj.isoformat())
     return str(obj)

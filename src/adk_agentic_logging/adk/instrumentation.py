@@ -238,7 +238,11 @@ def _process_chunk(
             new_tokens = usage.get("total_tokens") or usage.get("total_token_count")
 
         if new_tokens is not None:
-            # ADK usually sends the running total, take max to be safe
+            # ADK / Gemini usually sends the running total (cumulative).
+            # We use max() to ensure we capture the most recent total,
+            # even if chunks arrive with partial metrics or out of order.
+            # Note: If using a provider that sends ONLY deltas in each chunk,
+            # this logic would need to be changed to: total_tokens += new_tokens
             total_tokens = max(total_tokens, new_tokens)
 
     # 3. Extract Detailed Tool Calls
