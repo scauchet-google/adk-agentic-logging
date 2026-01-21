@@ -189,3 +189,6 @@ Temporary Items
 
 # local uv cache
 .uv
+
+# local PR file
+PR.md
