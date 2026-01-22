@@ -1,6 +1,6 @@
 [project]
 name = "adk-agentic-logging"
-version = "0.1.0"
+version = "0.2.0"
 description = "Wide Event Logging & Observability for Google ADK Agents"
 readme = "README.md"
 requires-python = ">=3.9"
