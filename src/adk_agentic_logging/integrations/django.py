@@ -69,20 +69,24 @@ class AgenticLoggingMiddleware:
     def _finalize_http(self, response: HttpResponse, start_time: float) -> None:
         duration_ms = round((time.time() - start_time) * 1000, 2)
         http_ctx = log_ctx.get_all().get("http", {})
-        http_ctx.update({
-            "status_code": response.status_code,
-            "duration_ms": duration_ms,
-        })
+        http_ctx.update(
+            {
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+            }
+        )
         log_ctx.add("http", http_ctx)
 
     def _handle_exception(self, e: Exception, start_time: float) -> None:
         log_ctx.record_exception(e)
         duration_ms = round((time.time() - start_time) * 1000, 2)
         http_ctx = log_ctx.get_all().get("http", {})
-        http_ctx.update({
-            "status_code": 500,
-            "duration_ms": duration_ms,
-        })
+        http_ctx.update(
+            {
+                "status_code": 500,
+                "duration_ms": duration_ms,
+            }
+        )
         log_ctx.add("http", http_ctx)
 
     def _emit_log(self) -> None:

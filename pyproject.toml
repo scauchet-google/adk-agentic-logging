@@ -15,6 +15,10 @@ dependencies = [
 fastapi = ["fastapi", "uvicorn"]
 flask = ["flask"]
 django = ["django"]
+google-adk = [
+    "opentelemetry-exporter-gcp-trace",
+    "opentelemetry-instrumentation-google-genai",
+]
 dev = [
     "ruff", 
     "mypy", 

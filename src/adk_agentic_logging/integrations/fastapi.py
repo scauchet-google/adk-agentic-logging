@@ -53,10 +53,12 @@ class AgenticLoggingMiddleware:
                     status = message["status"]
                     duration = round((time.time() - start_time) * 1000, 2)
                     http_ctx = log_ctx.get_all().get("http", {})
-                    http_ctx.update({
-                        "status_code": status,
-                        "duration_ms": duration,
-                    })
+                    http_ctx.update(
+                        {
+                            "status_code": status,
+                            "duration_ms": duration,
+                        }
+                    )
                     log_ctx.add("http", http_ctx)
                 await send(message)
 
@@ -66,10 +68,12 @@ class AgenticLoggingMiddleware:
                 log_ctx.record_exception(e)
                 duration = round((time.time() - start_time) * 1000, 2)
                 http_ctx = log_ctx.get_all().get("http", {})
-                http_ctx.update({
-                    "status_code": 500,
-                    "duration_ms": duration,
-                })
+                http_ctx.update(
+                    {
+                        "status_code": 500,
+                        "duration_ms": duration,
+                    }
+                )
                 log_ctx.add("http", http_ctx)
                 span.record_exception(e)
                 span.set_status(trace.Status(trace.StatusCode.ERROR))
@@ -89,9 +93,7 @@ class AgenticLoggingMiddleware:
                                         or body_data.get("prompt")
                                         or body_data
                                     )
-                                    log_ctx.add_content(
-                                        "gen_ai.content.prompt", prompt
-                                    )
+                                    log_ctx.add_content("gen_ai.content.prompt", prompt)
                                 else:
                                     log_ctx.add_content(
                                         "gen_ai.content.prompt", body_data
@@ -103,7 +105,7 @@ class AgenticLoggingMiddleware:
                                     full_body.decode("utf-8", errors="ignore"),
                                 )
                     except Exception:
-                        pass # Defensive
+                        pass  # Defensive
 
                 # Attributes are already set in span via log_ctx.add calls
                 self._emit_log()
