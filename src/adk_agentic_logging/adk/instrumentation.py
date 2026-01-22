@@ -156,7 +156,7 @@ def _prepare_log_ctx(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Non
         app_ctx["session_id"] = adk_meta.pop("session_id")
     if "tenant_id" in adk_meta:
         app_ctx["tenant_id"] = adk_meta.pop("tenant_id")
-    
+
     if app_ctx:
         log_ctx.add("app", app_ctx)
 
@@ -166,7 +166,7 @@ def _prepare_log_ctx(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Non
         prompt = input_obj.get("message") or input_obj.get("prompt")
     elif input_obj:
         prompt = getattr(input_obj, "message", getattr(input_obj, "prompt", None))
-    
+
     if prompt:
         log_ctx.add_content("gen_ai.content.prompt", str(prompt))
 
@@ -177,7 +177,7 @@ def _prepare_log_ctx(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Non
             gen_ai = log_ctx.get_all().get("gen_ai", {})
             gen_ai["temperature"] = adk_meta["temperature"]
             log_ctx.add("gen_ai", gen_ai)
-        
+
         # We still keep 'adk' for internal/other fields if any
         log_ctx.add("adk", adk_meta)
 
@@ -206,7 +206,7 @@ def _wrap_generator(
     finally:
         if completion_text:
             log_ctx.add_content("gen_ai.content.completion", "".join(completion_text))
-        
+
         _finalize_metrics(total_tokens, tool_calls, agents_invoked)
         if span:
             _add_span_attributes_from_ctx(span)
@@ -237,7 +237,7 @@ async def _wrap_async_generator(
     finally:
         if completion_text:
             log_ctx.add_content("gen_ai.content.completion", "".join(completion_text))
-            
+
         _finalize_metrics(total_tokens, tool_calls, agents_invoked)
         if span:
             _add_span_attributes_from_ctx(span)
@@ -253,7 +253,7 @@ def _add_span_attributes_from_ctx(span: trace.Span) -> None:
                 _set_nested_attr(f"{prefix}.{k}" if prefix else k, v)
         else:
             attr_val = str(data)
-            # Snippet strategy is handled by add_content, 
+            # Snippet strategy is handled by add_content,
             # but we still guard against massive fields here.
             if len(attr_val) > 1024:
                 attr_val = attr_val[:1024] + "... [truncated]"
@@ -321,7 +321,7 @@ def _process_chunk(
 
         if total_tokens_val:
             total_tokens = max(total_tokens, total_tokens_val)
-        
+
         # We store input/output tokens if they are cumulative or if they are
         # the last ones.
         # For simplicity, we just add them to the gen_ai.usage context
@@ -353,7 +353,7 @@ def _finalize_metrics(
     usage = gen_ai.get("usage", {})
     usage["total_tokens"] = total_tokens
     gen_ai["usage"] = usage
-    
+
     if agents_invoked:
         agent = gen_ai.get("agent", {})
         agent["invoked"] = list(agents_invoked)
@@ -372,7 +372,7 @@ def _capture_metrics(result: Any) -> None:
     total_tokens = 0
     input_tokens = None
     output_tokens = None
-    
+
     usage = None
     for attr in ["usage", "usage_metadata"]:
         usage = getattr(result, attr, None)
@@ -410,7 +410,7 @@ def _capture_metrics(result: Any) -> None:
                 or usage.get("total_tokens")
                 or usage.get("total_token_count")
             )
-        
+
         if total_tokens_val:
             total_tokens = total_tokens_val
 
@@ -425,7 +425,7 @@ def _capture_metrics(result: Any) -> None:
 
     # 4. Finalize
     _finalize_metrics(total_tokens, tool_calls, agents_invoked)
-    
+
     # Add input/output tokens to usage ctx if they were found
     if input_tokens or output_tokens:
         gen_ai = log_ctx.get_all().get("gen_ai", {})

@@ -38,10 +38,12 @@ class AgenticLogging:
         start_time = getattr(g, "_start_time", curr_time)
         duration_ms = round((curr_time - start_time) * 1000, 2)
         http_ctx = log_ctx.get_all().get("http", {})
-        http_ctx.update({
-            "status_code": response.status_code,
-            "duration_ms": duration_ms,
-        })
+        http_ctx.update(
+            {
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+            }
+        )
         log_ctx.add("http", http_ctx)
         return response
 

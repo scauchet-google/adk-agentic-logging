@@ -16,6 +16,7 @@ class MockAgent:
             def __init__(self) -> None:
                 self.name = "TestAgent"
                 self.model = "mock-model"
+
         self.agent = MockAgentInfo()
 
     @instrument_runner
@@ -86,7 +87,7 @@ def test_fastapi_adk_integration(caplog: pytest.LogCaptureFixture) -> None:
                 assert log_data["gen_ai"]["usage"]["total_tokens"] == 100
                 assert log_data["gen_ai"]["agent"]["name"] == "TestAgent"
                 assert log_data["gen_ai"]["model"] == "mock-model"
-                
+
                 # Check content accumulation (namespaced as gen_ai.content.completion)
                 assert "content" in log_data["gen_ai"]
                 assert log_data["gen_ai"]["content"]["completion"] == "Hello world!"

@@ -25,10 +25,12 @@ class VertexAISanitizer(SpanProcessor):
         for key in blocklist:
             if key in span.attributes:
                 # In OTel SDK, ReadableSpan is often the Span object itself.
-                # Span.attributes is a mappingproxy, but Span._attributes is the actual 
+                # Span.attributes is a mappingproxy, but Span._attributes is the actual
                 # storage (BoundedAttributes).
                 if hasattr(span, "_attributes"):
                     try:
-                        del span._attributes[key]
+                        from typing import Any, cast
+
+                        del cast(Any, span)._attributes[key]
                     except (KeyError, TypeError):
                         pass

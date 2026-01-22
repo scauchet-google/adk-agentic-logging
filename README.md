@@ -19,16 +19,68 @@ By seamlessly bridging web frameworks with Google Cloud’s ecosystem, it enforc
 - **🔍 Trace-Aware**: Injects OpenTelemetry `trace_id` and `span_id` for seamless Cloud Trace linking.
 - **�🔌 Framework Agnostic**: First-class support for **FastAPI**, **Flask**, and **Django**.
 - **🧹 Vertex AI Trace Sanitization**: Surgically removes large JSON payloads (prompts, tool definitions) from Cloud Trace spans to reduce noise and cost.
+- **⚡ Supercharged Tracing**: One-line enablement of full Google Cloud Trace with automatic correlation to internal ADK spans.
 
 ---
 
 ## 📦 Installation
 
 ```bash
+# Core library
 uv pip install adk-agentic-logging
+
+# With Google Cloud Tracing capabilities
+uv pip install "adk-agentic-logging[google-adk]"
 ```
 
 ---
+
+## ⚡ Supercharged Tracing (Unified Observability)
+
+The `configure_logging` function is your unified entry point for observability. It activates full Google Cloud Tracing or Console Tracing with a single line of code, handling OTel configuration and GCP project detection automatically.
+
+**Crucially, `adk-agentic-logging` is lazy.** It will not touch OpenTelemetry or initialize any SDK providers until you explicitly call `configure_logging()`.
+
+### Usage Examples
+
+#### 1. Local Development (Console Only)
+By default, console tracing is enabled with beautiful [Rich](https://github.com/Textualize/rich) formatting.
+```python
+from adk_agentic_logging import configure_logging
+
+# Console tracing is ON by default
+configure_logging()
+```
+
+#### 2. Production (Google Cloud Trace)
+Enable GCP export for production. If `project_id` is omitted, it is auto-detected from the environment.
+```python
+configure_logging(enable_google_tracing=True)
+```
+
+#### 3. Mixed Mode / Advanced
+You can toggle exporters independently and specify an explicit project ID.
+```python
+configure_logging(
+    enable_google_tracing=True,
+    enable_console_tracing=False, # Silence console logs in production
+    project_id="my-custom-gcp-project"
+)
+```
+
+### Configuration Parameters
+
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `enable_google_tracing` | `False` | Enables export to Google Cloud Trace. Requires `[google-adk]` extra. |
+| `enable_console_tracing` | `True` | Enables local console output via `RichConsoleSpanExporter`. |
+| `project_id` | `None` | Explicit GCP Project ID. If `None`, auto-detects from metadata or env. |
+
+> [!TIP]
+> This unified configuration automatically manages `BatchSpanProcessor` settings, environment variables for log correlation, and instruments the Google Generative AI SDK if installed.
+
+---
+
 
 ## 🚀 Quick Start
 
@@ -92,15 +144,17 @@ log_ctx.enrich(
 
 Adding these fields makes your logs easily queryable for specific interactions.
 
-### 4. Vertex AI Trace Sanitizer (Recommended)
+### Cost Optimization & Sanitization
 
-To reduce Cloud Trace costs and declutter the Waterfall UI, use the `configure_adk_telemetry` helper. This removes massive JSON payloads (prompts, history) from traces while preserving them in the structured logs.
+Traces can become expensive if they capture massive LLM prompts and responses. `adk-agentic-logging` includes a **Vertex AI Sanitizer** that automatically strips these large payloads from your traces (Waterfall UI) while keeping them safely in your structured logs.
+
+This gives you the best of both worlds: lightweight, low-cost Waterfall traces and full-fidelity logs for debugging.
+
+The sanitizer is **enabled by default** when you use `configure_logging()`.
 
 ```python
-from adk_agentic_logging.otel.config import configure_adk_telemetry
-
-# Initialize at app startup
-configure_adk_telemetry(project_id="your-gcp-project-id")
+# Everything is handled: OTel, Exporters, and Sanitization
+configure_logging(enable_google_tracing=True)
 ```
 
 ---
