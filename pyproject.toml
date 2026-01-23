@@ -18,6 +18,7 @@ django = ["django"]
 google-adk = [
     "opentelemetry-exporter-gcp-trace",
     "opentelemetry-instrumentation-google-genai",
+    "google-cloud-logging",
 ]
 dev = [
     "ruff", 

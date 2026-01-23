@@ -74,6 +74,7 @@ configure_logging(
 | :--- | :--- | :--- |
 | `enable_google_tracing` | `False` | Enables export to Google Cloud Trace. Requires `[google-adk]` extra. |
 | `enable_console_tracing` | `True` | Enables local console output via `RichConsoleSpanExporter`. |
+| `enable_cloud_logging` | `False` | Enables native Google Cloud Logging. Requires `[google-adk]` extra. |
 | `project_id` | `None` | Explicit GCP Project ID. If `None`, auto-detects from metadata or env. |
 
 > [!TIP]

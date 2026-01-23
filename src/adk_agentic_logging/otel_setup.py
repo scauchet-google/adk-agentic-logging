@@ -12,6 +12,14 @@ try:
 except ImportError:
     CloudTraceSpanExporter = None  # type: ignore[assignment, misc]
 
+# Import Google Cloud Logging safely
+try:
+    import google.cloud.logging
+    from google.cloud.logging.handlers import CloudLoggingHandler
+except ImportError:
+    google = None  # type: ignore[assignment]
+    CloudLoggingHandler = None
+
 # Import Google GenAI instrumentation safely
 try:
     import opentelemetry.instrumentation.google_genai as genai_instr
@@ -34,6 +42,7 @@ logger = logging.getLogger(__name__)
 def configure_otel(
     enable_google_tracing: bool = False,
     enable_console_tracing: bool = True,
+    enable_cloud_logging: bool = False,
     project_id: Optional[str] = None,
 ) -> None:
     """
@@ -107,8 +116,80 @@ def configure_otel(
             "Skipping auto-instrumentation."
         )
 
-    # 5. Inject environment variables for correlation
+    # 5. Configure Google Cloud Logging if requested
+    if enable_cloud_logging:
+        final_project_id = project_id or get_google_project_id()
+        configure_cloud_logging(project_id=final_project_id)
+
+    # 6. Inject environment variables for correlation
     os.environ.setdefault("OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED", "true")
+
+
+class GCPTraceFilter(logging.Filter):
+    """
+    Injects GCP-specific trace and span IDs into the log record for correlation.
+    GCP requires the trace field to be in the format:
+    projects/[PROJECT_ID]/traces/[TRACE_ID]
+    """
+
+    def __init__(self, project_id: Optional[str] = None):
+        super().__init__()
+        self.project_id = project_id or get_google_project_id()
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        span_context = trace.get_current_span().get_span_context()
+        if span_context.is_valid:
+            trace_id = trace.format_trace_id(span_context.trace_id)
+            span_id = trace.format_span_id(span_context.span_id)
+
+            # GCP Trace Correlation format
+            if self.project_id:
+                record.trace = f"projects/{self.project_id}/traces/{trace_id}"
+            else:
+                record.trace = trace_id
+
+            record.span_id = span_id
+            record.trace_sampled = span_context.trace_flags.sampled
+
+        # Prevent logging loops by excluding logs from the logging/trace clients themselves
+        if record.name.startswith(("google", "opentelemetry", "urllib3")):
+            return False
+
+        return True
+
+
+def configure_cloud_logging(project_id: Optional[str] = None) -> None:
+    """
+    Configures the native Google Cloud Logging handler.
+    Correlates logs with traces if running in GCP or if trace context is available.
+    """
+    if CloudLoggingHandler is None:
+        logger.warning(
+            "enable_cloud_logging=True but `google-cloud-logging` is not installed. "
+            "Please install it via `pip install adk-agentic-logging[google-adk]`."
+        )
+        return
+
+    try:
+        client = google.cloud.logging.Client(project=project_id)
+        # We use the default handler which is designed for GCP environments.
+        # It automatically attaches trace/span IDs if the OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED
+        # or similar correlation mechanisms are active.
+        handler = CloudLoggingHandler(client)
+
+        # Attach the GCPTraceFilter for explicit correlation
+        handler.addFilter(GCPTraceFilter(project_id=project_id))
+
+        # Add to the root logger to catch all application logs,
+        # or we could be more surgical.
+        logging.getLogger().addHandler(handler)
+
+        logger.info(
+            "Google Cloud Logging handler attached "
+            f"(Project: {project_id or 'auto-detected'})."
+        )
+    except Exception as e:
+        logger.error(f"Failed to configure Google Cloud Logging: {e}")
 
 
 def configure_google_tracing(enable_google_tracing: bool = False) -> None:

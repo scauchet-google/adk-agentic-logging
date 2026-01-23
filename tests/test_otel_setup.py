@@ -1,4 +1,5 @@
 import importlib
+import logging
 import os
 import sys
 import unittest
@@ -40,6 +41,12 @@ sys.modules["opentelemetry.exporter.cloud_trace"] = mock_gcp_exporter
 sys.modules["opentelemetry.instrumentation.google_genai"] = mock_genai_instrumentor
 sys.modules["opentelemetry.exporter.richconsole"] = mock_rich_exporter
 
+mock_google = MagicMock()
+sys.modules["google"] = mock_google
+sys.modules["google.cloud"] = mock_google.cloud
+sys.modules["google.cloud.logging"] = mock_google.cloud.logging
+sys.modules["google.cloud.logging.handlers"] = mock_google.cloud.logging.handlers
+
 import adk_agentic_logging  # noqa: E402, I001
 import adk_agentic_logging.otel_setup  # noqa: E402, I001
 
@@ -57,6 +64,8 @@ class TestLoggingConfig(unittest.TestCase):
             instr._is_instrumented_by_adk = False
         mock_instrumentor_instance.instrument.reset_mock()
         mock_rich_exporter.RichConsoleSpanExporter.reset_mock()
+        mock_google.cloud.logging.Client.reset_mock()
+        mock_google.cloud.logging.handlers.CloudLoggingHandler.reset_mock()
 
         # Reset instrumentation flag
         if hasattr(
@@ -147,6 +156,73 @@ class TestLoggingConfig(unittest.TestCase):
         # Should NOT call exporters again
         mock_rich_exporter.RichConsoleSpanExporter.assert_not_called()
         mock_gcp_exporter.CloudTraceSpanExporter.assert_not_called()
+
+    def test_configure_cloud_logging(self) -> None:
+        with patch(
+            "adk_agentic_logging.otel_setup.get_google_project_id"
+        ) as mock_get_project:
+            mock_get_project.return_value = "test-project"
+
+            adk_agentic_logging.configure_logging(enable_cloud_logging=True)
+
+            # Verify client initialized with project
+            mock_google.cloud.logging.Client.assert_called_with(project="test-project")
+
+            # Verify handler initialized
+            mock_google.cloud.logging.handlers.CloudLoggingHandler.assert_called_once()
+
+    def test_gcp_trace_filter(self) -> None:
+        from adk_agentic_logging.otel_setup import GCPTraceFilter
+
+        # Mock a valid span context
+        mock_span_context = MagicMock()
+        mock_span_context.is_valid = True
+        mock_span_context.trace_id = 0x12345678123456781234567812345678
+        mock_span_context.span_id = 0x1234567812345678
+        mock_span_context.trace_flags.sampled = True
+
+        mock_span = MagicMock()
+        mock_span.get_span_context.return_value = mock_span_context
+
+        with patch("opentelemetry.trace.get_current_span", return_value=mock_span), \
+             patch("opentelemetry.trace.format_trace_id", return_value="12345678123456781234567812345678"), \
+             patch("opentelemetry.trace.format_span_id", return_value="1234567812345678"):
+            filt = GCPTraceFilter(project_id="test-project")
+            record = logging.LogRecord(
+                "test", logging.INFO, "test.py", 10, "test message", (), None
+            )
+
+            result = filt.filter(record)
+
+            self.assertTrue(result)
+            self.assertEqual(
+                record.trace,
+                "projects/test-project/traces/12345678123456781234567812345678",
+            )
+            self.assertEqual(record.span_id, "1234567812345678")
+            self.assertTrue(record.trace_sampled)
+
+    def test_gcp_trace_filter_loop_protection(self) -> None:
+        from adk_agentic_logging.otel_setup import GCPTraceFilter
+        filt = GCPTraceFilter(project_id="test-project")
+
+        # Google loggers should be dropped
+        rec = logging.LogRecord(
+            "google.cloud.logging", logging.DEBUG, "test.py", 10, "msg", (), None
+        )
+        self.assertFalse(filt.filter(rec))
+
+        # OTel loggers should be dropped
+        rec = logging.LogRecord(
+            "opentelemetry.trace", logging.DEBUG, "test.py", 10, "msg", (), None
+        )
+        self.assertFalse(filt.filter(rec))
+
+        # Standard loggers should be kept
+        rec = logging.LogRecord(
+            "adk_agentic_logging", logging.INFO, "test.py", 10, "msg", (), None
+        )
+        self.assertTrue(filt.filter(rec))
 
 
 if __name__ == "__main__":
